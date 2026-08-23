@@ -1,4 +1,4 @@
-# tmdbToLetterboxd
+# tmdbToLetterboxd [![Static Badge](https://img.shields.io/badge/Download-light_green)](https://github.com/zSavT/tmdbToLetterboxd/releases)
 
 - [tmdbToLetterboxd](#tmdbtoletterboxd)
   - [English](#english)
