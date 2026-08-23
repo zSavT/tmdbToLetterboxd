@@ -1,7 +1,14 @@
-﻿using System.Text.Json;
+﻿using System;
+using System.Net.Http;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.IO;
 using System.Globalization;
+using System.Collections.Generic;
+#nullable enable
+using System.Text;
+
+#nullable enable
 
 namespace tool
 {
@@ -10,17 +17,66 @@ namespace tool
         static void Main(string[] args)
         {
             Connection connection = new Connection();
-            if (args.Length != 0 && !string.IsNullOrEmpty(args[0]) && !string.IsNullOrEmpty(args[1]))
+            if (args.Length >= 2 && !string.IsNullOrEmpty(args[0]) && !string.IsNullOrEmpty(args[1]))
             {
                 connection.ListId = args[0];
                 connection.ApiKey = args[1];
             }
             else
             {
-                connection.ListId = "T";
-                connection.ApiKey = "your_api_key_here";
+                Console.WriteLine("Nessun argomento passato. Inserire manualmente (input nascosto).");
+                string api = ReadSecret("API Key: ");
+                string listInput = ReadSecret("Link o ID della lista: ");
+                connection.ApiKey = api;
+                connection.ListId = ExtractListId(listInput);
             }
             setConnection(connection);
+        }
+
+        private static string ReadSecret(string prompt)
+        {
+            Console.Write(prompt);
+            var sb = new StringBuilder();
+            while (true)
+            {
+                var key = Console.ReadKey(true);
+                if (key.Key == ConsoleKey.Enter)
+                {
+                    Console.WriteLine();
+                    break;
+                }
+                else if (key.Key == ConsoleKey.Backspace)
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Length--;
+                        Console.Write("\b \b");
+                    }
+                }
+                else
+                {
+                    sb.Append(key.KeyChar);
+                    Console.Write("*");
+                }
+            }
+            return sb.ToString();
+        }
+
+        private static string ExtractListId(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+            if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
+            {
+                var segs = uri.Segments;
+                for (int i = segs.Length - 1; i >= 0; i--)
+                {
+                    var s = segs[i].Trim('/');
+                    if (!string.IsNullOrEmpty(s))
+                        return s;
+                }
+            }
+            return input;
         }
 
         private static void setConnection(Connection connection)
