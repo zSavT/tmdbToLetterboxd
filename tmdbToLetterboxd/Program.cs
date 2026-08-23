@@ -8,8 +8,6 @@ using System.Collections.Generic;
 #nullable enable
 using System.Text;
 
-#nullable enable
-
 namespace tool
 {
     internal class Program
@@ -24,9 +22,9 @@ namespace tool
             }
             else
             {
-                Console.WriteLine("Nessun argomento passato. Inserire manualmente (input nascosto).");
+                Console.WriteLine("No arguments provided. Please enter values (input hidden).");
                 string api = ReadSecret("API Key: ");
-                string listInput = ReadSecret("Link o ID della lista: ");
+                string listInput = ReadSecret("Link or list ID: ");
                 connection.ApiKey = api;
                 connection.ListId = ExtractListId(listInput);
             }
@@ -88,72 +86,132 @@ namespace tool
                 var responseTest = client.GetAsync($"https://api.themoviedb.org/3/authentication?api_key={connection.ApiKey}").Result;
                 if (responseTest.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("\n✅ Connessione riuscita!");
-
+                    Console.WriteLine("\n✅ Connection successful!");
                     string baseUrl = $"https://api.themoviedb.org/3/list/{connection.ListId}?api_key={connection.ApiKey}&language=it-IT&page=";
                     var firstResponse = client.GetAsync(baseUrl + connection.currentPage).Result;
                     if (!firstResponse.IsSuccessStatusCode)
                         return;
-
                     string firstBody = firstResponse.Content.ReadAsStringAsync().Result;
-                    var firstList = JsonSerializer.Deserialize<Response>(firstBody);
+                    Response? firstList = null;
+                    try
+                    {
+                        firstList = JsonSerializer.Deserialize<Response>(firstBody);
+                    }
+                    catch (JsonException jex)
+                    {
+                        Console.WriteLine($"\n❌ Failed to parse JSON response: {jex.Message}");
+                        return;
+                    }
+
                     if (firstList == null)
                         return;
 
                     int totalPages = firstList.TotalPages;
-                    using (var writer = new StreamWriter("watched.csv", false))
+                    string fileName = "watched.csv";
+                    StreamWriter? writer = null;
+                    try
                     {
-                        writer.WriteLine("Date,Name,Year");
-                        void WriteItemsToCsv(List<MovieResult>? items)
+                        writer = new StreamWriter(fileName, false);
+                    }
+                    catch (IOException)
+                    {
+                        string alt = $"watched_{DateTime.Now:yyyyMMddHHmmss}.csv";
+                        try
                         {
-                            if (items == null)
-                                return;
+                            writer = new StreamWriter(alt, false);
+                            Console.WriteLine($"\nWarning: could not write to '{fileName}', using '{alt}' instead.");
+                            fileName = alt;
+                        }
+                        catch (IOException ioex)
+                        {
+                            Console.WriteLine($"\n❌ Unable to create CSV file: {ioex.Message}");
+                            return;
+                        }
+                    }
 
-                            foreach (var item in items)
+                    using (writer)
+                    {
+                        try
+                        {
+                            writer.WriteLine("Date,Name,Year");
+
+                            int processed = 0;
+                            int estimatedTotal = (firstList.Items?.Count ?? 0) * totalPages;
+
+                            int WriteItemsToCsv(List<MovieResult>? items)
                             {
-                                string date = item?.ReleaseDate ?? string.Empty;
-                                string name = item?.Title ?? string.Empty;
-                                string year = string.Empty;
-                                if (!string.IsNullOrEmpty(date))
+                                if (items == null)
+                                    return 0;
+
+                                int written = 0;
+                                foreach (var item in items)
                                 {
-                                    if (DateTime.TryParse(date, out var dt))
-                                        year = dt.Year.ToString(CultureInfo.InvariantCulture);
-                                    else if (date.Length >= 4)
-                                        year = date.Substring(0, 4);
+                                    string date = item?.ReleaseDate ?? string.Empty;
+                                    string name = item?.Title ?? string.Empty;
+                                    string year = string.Empty;
+                                    if (!string.IsNullOrEmpty(date))
+                                    {
+                                        if (DateTime.TryParse(date, out var dt))
+                                            year = dt.Year.ToString(CultureInfo.InvariantCulture);
+                                        else if (date.Length >= 4)
+                                            year = date.Substring(0, 4);
+                                    }
+
+                                    writer.WriteLine($"{EscapeCsv(date)},{EscapeCsv(name)},{EscapeCsv(year)}");
+                                    written++;
                                 }
-
-                                writer.WriteLine($"{EscapeCsv(date)},{EscapeCsv(name)},{EscapeCsv(year)}");
+                                return written;
                             }
-                        }
-                        if (totalPages > 1)
-                        {
-                            WriteItemsToCsv(firstList.Items);
 
-                            for (int p = 2; p <= totalPages; p++)
+                            if (totalPages > 1)
                             {
-                                var resp = client.GetAsync(baseUrl + p).Result;
-                                if (!resp.IsSuccessStatusCode)
-                                    continue;
+                                processed += WriteItemsToCsv(firstList.Items);
+                                Console.WriteLine($"Processed {processed} of ~{estimatedTotal} items (page 1 of {totalPages}).");
 
-                                var body = resp.Content.ReadAsStringAsync().Result;
-                                var pageList = JsonSerializer.Deserialize<Response>(body);
-                                WriteItemsToCsv(pageList?.Items);
+                                for (int p = 2; p <= totalPages; p++)
+                                {
+                                    var resp = client.GetAsync(baseUrl + p).Result;
+                                    if (!resp.IsSuccessStatusCode)
+                                        continue;
+
+                                    var body = resp.Content.ReadAsStringAsync().Result;
+                                    Response? pageList = null;
+                                    try
+                                    {
+                                        pageList = JsonSerializer.Deserialize<Response>(body);
+                                    }
+                                    catch (JsonException)
+                                    {
+                                        Console.WriteLine($"\nWarning: failed to parse JSON for page {p}, skipping.");
+                                        continue;
+                                    }
+
+                                    int written = WriteItemsToCsv(pageList?.Items);
+                                    processed += written;
+                                    Console.WriteLine($"Processed {processed} of ~{estimatedTotal} items (page {p} of {totalPages}, items this page: {written}).");
+                                }
+                            }
+                            else
+                            {
+                                processed += WriteItemsToCsv(firstList.Items);
+                                Console.WriteLine($"Processed {processed} items.");
                             }
                         }
-                        else
+                        catch (Exception writeEx)
                         {
-                            WriteItemsToCsv(firstList.Items);
+                            Console.WriteLine($"\n❌ Error while writing CSV: {writeEx.Message}");
+                            return;
                         }
                     }
                 }
                 else
                 {
-                    Console.WriteLine("\n❌ Connessione fallita. Controlla la tua API Key.");
+                    Console.WriteLine("\n❌ Connection failed. Check your API key.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n❌ Si è verificato un errore durante la connessione: {ex.Message}");
+                Console.WriteLine($"\n❌ An error occurred during connection: {ex.Message}");
                 return;
             }
         }
@@ -172,10 +230,9 @@ namespace tool
 
     class Connection
     {
-        public string ApiKey { get; set; }
-        public string ListId { get; set; }
-
-        public string currentPage {  get; set; }
+        public string ApiKey { get; set; } = string.Empty;
+        public string ListId { get; set; } = string.Empty;
+        public string currentPage { get; set; } = string.Empty;
     }
 
 

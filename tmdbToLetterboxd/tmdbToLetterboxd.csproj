@@ -1,10 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+<PropertyGroup>
+  <!-- Informazioni sul progetto -->
+  <Authors>SavT</Authors>
+  <Company>SavT Software</Company>
+  <Product>TMDB To Letterboxd</Product>
+  <Description>Strumento per esportare liste TMDB in CSV per il formato Letterboxd</Description>
+
+  <!-- Versioni -->
+  <Version>1.0.0</Version>
+  <FileVersion>1.0.0.0</FileVersion>
+  <AssemblyVersion>1.0.0.0</AssemblyVersion>
+
+  <!-- Informazioni aggiuntive -->
+  <Copyright>© 2026 SavT</Copyright>
+  <PackageProjectUrl>https://savtchannel.altervista.org/</PackageProjectUrl>
+  <RepositoryUrl>https://github.com/zSavT/tmdbToLetterboxd</RepositoryUrl>
+
+  <!-- Configurazione build -->
+  <OutputType>Exe</OutputType>
+  <TargetFramework>net8.0</TargetFramework>
+  <PublishSingleFile>true</PublishSingleFile>
+  <SelfContained>true</SelfContained>
+  <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Icona dell'eseguibile -->
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="icon.ico" Pack="true" Visible="false" />
+  </ItemGroup>
+
 
 </Project>
